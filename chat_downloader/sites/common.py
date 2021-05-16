@@ -1,7 +1,14 @@
 
+import logging
+import urllib3
+import http.client
 import requests
 from http.cookiejar import MozillaCookieJar
 import os
+import time
+import zlib
+import json
+import bz2
 from json import JSONDecodeError
 
 from ..errors import (
@@ -315,6 +322,10 @@ class BaseChatDownloader:
         if exit_on_debug:
             raise UnexpectedError(items)
 
+    @staticmethod
+    def _httplog_cb(*a, **ka):
+        log('debug', '[HTTP] ' + ' '.join(str(x) for x in a))
+
     def __init__(self,
                  **kwargs
                  ):
@@ -353,6 +364,11 @@ class BaseChatDownloader:
                     'The file "{}" could not be found.'.format(cookies))
         self.session.cookies = cj
 
+    def enable_httplog(self):
+        self.httplog = True
+        http.client.print = self._httplog_cb
+        http.client.HTTPConnection.debuglevel = 1
+
     def get_session_headers(self, key):
         return self.session.headers.get(key)
 
@@ -379,13 +395,30 @@ class BaseChatDownloader:
     #     pass
     #     # self.close()
 
+    def _logreq(self, fun, url, **kwargs):
+        ret = getattr(self.session, fun)(url, **kwargs)
+        crc = zlib.crc32(ret.content) & 0xFFFFFFFF
+        fn = f'log-p{os.getpid()}-{time.time():.3f}-{crc:08x}.req.bz2'
+        log('debug', f'writing response to {fn}')
+        with bz2.open(fn, 'wb') as f:
+            f.write(ret.content)
+        return ret
+
     def _session_post(self, url, **kwargs):
         """Make a request using the current session."""
-        return self.session.post(url, **kwargs)
+        log('debug', f"session.post {url}  {kwargs}")
+        if self.httplog:
+            return self._logreq('post', url, **kwargs)
+        else:
+            return self.session.post(url, **kwargs)
 
     def _session_get(self, url, **kwargs):
         """Make a request using the current session."""
-        return self.session.get(url, **kwargs)
+        log('debug', f"session.get {url}  {kwargs}")
+        if self.httplog:
+            return self._logreq('get', url, **kwargs)
+        else:
+            return self.session.get(url, **kwargs)
 
     def _session_get_json(self, url, **kwargs):
         """Make a request using the current session and get json data."""

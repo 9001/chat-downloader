@@ -149,9 +149,11 @@ def main():
     debug_options.add_argument(
         '--testing', help='Enable testing mode. This is equivalent to setting logging to debug and enabling pause_on_debug', action='store_true')
     debug_options.add_argument(
-        '--verbose', '-v', help='Print various debugging information. This is equivalent to setting logging to debug', action='store_true')
+        '--verbose', '-v', help='Print various debugging information. This is equivalent to setting logging to debug. Enables http-logging and logging to file when given multiple times', action='count')
     debug_options.add_argument(
         '--quiet', '-q', help='Activate quiet mode (hide all output)', action='store_true')
+    debug_options.add_argument(
+        '--httplog', help='Enable http traffic logging', action='store_true')
 
     # INIT PARAMS
     init_group = parser.add_argument_group('Initialisation Arguments')

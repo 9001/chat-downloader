@@ -1,8 +1,13 @@
 """Main module."""
 import sys
+import os
 import re
+import logging
 import itertools
 import time
+import platform
+import threading
+import faulthandler
 
 from urllib.parse import urlparse
 
@@ -77,6 +82,7 @@ class ChatDownloader():
                  logging='info',
                  pause_on_debug=False,
                  exit_on_debug=False,
+                 httplog=False,
 
                  # If True, program will not sleep when a timeout instruction is given
                  # force_no_timeout=False,
@@ -170,6 +176,7 @@ class ChatDownloader():
                 if timeout is not None or inactivity_timeout is not None:
                     # Generator requires timing functionality
 
+                    log('debug', f'init TimedGenerator with timeouts {timeout} and {inactivity_timeout}')
                     info.chat = TimedGenerator(
                         info.chat, timeout, inactivity_timeout)
 
@@ -218,6 +225,19 @@ class ChatDownloader():
         self.sessions = {}
 
 
+def threadwatcher():
+    me = os.getpid()
+    ctr = 1
+    while True:
+        time.sleep(60)
+        ctr += 1
+        fn = f'log-p{me}-{time.time():.3f}-{ctr}-stack.txt'
+        with open(fn, 'w', encoding='utf-8') as f:
+            f.write(f'pid {me}, iter {ctr}, {sys.argv}\n\n')
+            faulthandler.dump_traceback(file=f)
+        log('debug', f'wrote stack to {fn}')
+
+
 def run(**kwargs):
     """
     Create a single session and get the chat using the specified parameters.
@@ -241,6 +261,17 @@ def run(**kwargs):
 
     if kwargs.get('verbose'):
         kwargs['logging'] = 'debug'
+        if kwargs['verbose'] > 1:
+            kwargs['httplog'] = True
+            lh = logging.FileHandler(f'log-p{os.getpid()}-{time.time():.3f}-msgs.txt', encoding='utf-8')
+            lh.setFormatter(logging.Formatter(
+                ' @ %(asctime)s.%(msecs)03d [%(levelname)s] %(message)s',
+                datefmt="%H%M%S"))
+            get_logger().addHandler(lh)
+
+            t = threading.Thread(target=threadwatcher)
+            t.daemon = True
+            t.start()
 
     quiet = kwargs.get('quiet')
     if quiet or kwargs['logging'] == 'none':
@@ -261,6 +292,7 @@ def run(**kwargs):
         elif arg in init_param_names:
             init_params[arg] = value
 
+    log('debug', 'OS version: {}'.format(platform.version()))
     log('debug', 'Python version: {}'.format(sys.version))
     log('debug', 'Program version: {}'.format(__version__))
 

@@ -1091,21 +1091,26 @@ class YouTubeChatDownloader(BaseChatDownloader):
                         yt_info, 'continuationContents', 'liveChatContinuation')
 
                     if not info:
+                        log('debug', 'info is falsy')
                         return
 
+                    log('debug', 'got continuation data')
                     break  # successful retrieve
 
                 except (JSONDecodeError, RequestException) as e:
+                    log('warning', f'retry; {e!r}')
                     self.retry(attempt_number, max_attempts, e, retry_timeout)
                     self.clear_cookies()
 
                     continue
 
             actions = info.get('actions') or []
+            log('debug', f'num actions: {len(actions)}')
 
             # print(actions)
 
             if actions:
+                log('debug', 'have actions')
                 for action in actions:
                     # print(action)
                     data = {}
@@ -1308,6 +1313,7 @@ class YouTubeChatDownloader(BaseChatDownloader):
 
             elif not is_live:
                 # no more actions to process in a chat replay
+                log('debug', 'not is_live')
                 break
             else:
                 # otherwise, is live, so keep trying
@@ -1317,12 +1323,14 @@ class YouTubeChatDownloader(BaseChatDownloader):
             no_continuation = True
 
             # parse the continuation information
+            log('debug', 'looking for continuations')
             for cont in info.get('continuations') or []:
 
                 continuation_key = try_get_first_key(cont)
                 continuation_info = cont[continuation_key]
 
                 if continuation_key in self._KNOWN_CHAT_CONTINUATIONS:
+                    log('debug', 'found chat continuation, nice')
 
                     # set new chat continuation
                     # overwrite if there is continuation data
@@ -1332,6 +1340,7 @@ class YouTubeChatDownloader(BaseChatDownloader):
                     no_continuation = False
 
                 elif continuation_key in self._KNOWN_SEEK_CONTINUATIONS:
+                    log('debug', 'found seek continuation (ignored)')
                     pass
                     # ignore these continuations
                 else:
@@ -1356,6 +1365,7 @@ class YouTubeChatDownloader(BaseChatDownloader):
                     interruptable_sleep(sleep_duration / 1000)
 
             if no_continuation:  # no continuation, end
+                log('debug', 'end of strema? no cintunuations')
                 break
 
             if first_time:
@@ -1382,6 +1392,10 @@ class YouTubeChatDownloader(BaseChatDownloader):
     def get_chat(self,
                  **kwargs
                  ):
+
+        # TODO couldnt figure out how to set this nicely sorry
+        if kwargs.get('httplog'):
+            self.enable_httplog()
 
         # get video id
         url = kwargs.get('url')
